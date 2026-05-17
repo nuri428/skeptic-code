@@ -2,55 +2,80 @@
 
 > "Innocent until proven guilty? Not here. **Deleted until proven necessary.**"
 
-`skeptic-code`는 Claude Code용 냉철한 코드 감사 스킬입니다.
+A Claude Code skill for adversarial code auditing.
 
-코드 리뷰가 "이 코드가 올바른가?"를 묻는다면,  
-`skeptic-code`는 **"이 코드가 존재해야 하는가?"**를 묻습니다.
+Code review asks: "Is this code correct?"  
+`skeptic-code` asks: **"Should this code exist at all?"**
 
-## 왜 기존 도구로는 부족한가
+## Why Existing Tools Are Not Enough
 
-linter와 dead-code analyzer는 "동작하는 코드 = 필요한 코드"라고 전제합니다.  
-`skeptic-code`는 그 전제를 뒤집어 기존 도구가 잡지 못하는 세 가지를 노립니다:
+Linters and dead-code analyzers share a hidden assumption: **"if it runs, it belongs."**
 
-- **YAGNI 위반** — 실행은 되지만 현재 요구사항과 무관한 코드
-- **Silent failure** — 에러를 삼키는 `except: pass` / `catch (_) {}` 패턴
-- **Scope creep** — 스펙에 없는 기능이 자연스럽게 추가된 것
+`skeptic-code` rejects that assumption. Three failure classes that existing tools miss:
 
-## 설치
+- **YAGNI violations** — code that executes but serves no current requirement
+- **Silent failures** — `except: pass` / `catch (_) {}` patterns that eat errors on hot paths
+- **Scope creep** — features nobody asked for that felt natural to add
+
+Adversarial framing ("guilty until proven innocent") changes the conclusion even when looking at the same code.
+
+## Scope and Limitations
+
+This skill applies **Karpathy's Simplicity First principle** and a **pre-mortem lens**, narrowed to one question: *does this code need to exist?*
+
+It does **not** cover:
+- Runtime failure scenarios (load, concurrency, dependency outages)
+- Wrong assumptions in business logic
+- Architectural failure modes
+- Coding process guidance (when to ask, how to plan)
+
+For those, use a dedicated architecture review or pre-mortem session.
+
+## Installation
 
 ```bash
 /install-skill nuri428/skeptic-code
 ```
 
-## 사용법
+## Usage
 
 ```
-/skeptic-code              # 자동 범위 감지
-/skeptic-code quick        # 상위 5개 발견, ~2분
-/skeptic-code deep         # 전체 라인 수준 감사, ~10분
-/skeptic-code <path>       # 특정 파일 또는 디렉토리
+/skeptic-code              # auto-detect scope
+/skeptic-code quick        # top-5 findings, ~2 min
+/skeptic-code deep         # full line-level audit, ~10 min
+/skeptic-code <path>       # specific file or directory
 ```
 
-## 5가지 용의자
+## The Five Suspects
 
-| 태그 | 이름 | 죄목 |
-|------|------|------|
-| `[GHOST]` | Dead code | 한때 필요했다. 이제는 아니다. 아직도 떠돌고 있다. |
-| `[PROPHET]` | Speculative feature | 오지 않을 미래를 위해 작성됨. "아마 필요할 것 같아서..." |
-| `[LIAR]` | Silent failure | 에러를 처리한다고 주장한다. 실제로는 삼켜버린다. |
-| `[TWIN]` | Duplication | 두 곳에 같은 로직. 하나는 존재해서는 안 된다. |
-| `[STRANGER]` | Scope creep | 아무도 요청하지 않았다. 자연스럽게 추가됐다. 스펙에 없었다. |
+| Tag | Name | Crime |
+|-----|------|-------|
+| `[GHOST]` | Dead code | Was needed once. No longer. Still haunting. |
+| `[PROPHET]` | Speculative feature | Written for a future that won't come. "We'll probably need..." |
+| `[LIAR]` | Silent failure | Claims to handle errors. Doesn't. Swallows them. |
+| `[TWIN]` | Duplication | Same logic in two places. One of them shouldn't exist. |
+| `[STRANGER]` | Scope creep | Nobody asked for this. Felt natural to add. Wasn't in spec. |
 
-## 작동 방식
+## How It Works
 
-1. **읽기** — 전체 파일을 건너뛰지 않고 읽음
-2. **1차 탐색** — 10가지 알려진 패턴으로 후보 식별
-3. **2차 검증** — grep으로 실제 사용처 확인 후 `[CUT]` 결정
-4. **보고서** — 구체적인 before→after diff 포함한 우선순위 목록
-5. **적용** — 사용자 승인 후 수정, 테스트 실행 확인
+1. **Read** — full file(s), no skimming
+2. **Pass 1: Hunt** — identify candidates against 10 known offender patterns
+3. **Pass 2: Verify** — grep confirms actual usage before any `[CUT]` verdict
+4. **Report** — prioritized findings with concrete before→after diffs
+5. **Apply** — edits only after user approval, test suite runs after each cut
 
-## 핵심 원칙
+**Key guarantee**: no `[CUT]` without grep evidence. Uncertain findings become `[QUESTION]` or `[FALSE_ALARM]`, never a silent deletion.
 
-**2-패스 검증**: grep 증거 없이는 절대 `[CUT]`을 내리지 않습니다.  
-**[FALSE_ALARM]**: CLAUDE.md나 의도적 설계 결정은 건드리지 않습니다.  
-**사용자 승인 우선**: 발견 결과를 먼저 제시하고, 편집은 승인 후에만 진행합니다.
+---
+
+## Acknowledgements
+
+`skeptic-code` was shaped by two sources:
+
+**[Andrej Karpathy's LLM coding guidelines](https://x.com/karpathy/status/2015883857489522876)**  
+The *Simplicity First* principle — no features beyond what was asked, no abstractions for single-use code, no "flexibility" that wasn't requested — is the direct ancestor of the `[PROPHET]`, `[STRANGER]`, and helper-called-once checks. Thank you for articulating what senior engineers instinctively enforce but rarely write down.
+
+**Pre-mortem methodology** (Gary Klein / Daniel Kahneman)  
+Assuming failure has already occurred and working backwards forces a different quality of scrutiny than optimistic review. The adversarial "guilty until proven innocent" stance in this skill is pre-mortem applied at the line level. Thank you for the framework.
+
+Both approaches are far broader than what this skill covers — see *Scope and Limitations* above.
