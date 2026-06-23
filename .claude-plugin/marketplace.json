@@ -1,0 +1,28 @@
+{
+  "name": "skepticcode",
+  "description": "Adversarial code audit skills for Claude Code — YAGNI, KISS, DRY driven",
+  "owner": {
+    "name": "강재호",
+    "email": "greennuri@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "skeptic-code",
+      "displayName": "Skeptic Code",
+      "source": "./",
+      "description": "Adversarial code audit driven by YAGNI, KISS, and DRY. Two-pass audit separates existence checks (should this code be here?) from safety checks (is this code dangerous?). Eight suspects: ghost, prophet, liar, twin, stranger, oracle, cliff, wheel.",
+      "version": "2.0.0",
+      "author": {
+        "name": "강재호",
+        "email": "greennuri@gmail.com"
+      },
+      "homepage": "https://github.com/nuri428/skeptic-code",
+      "repository": "https://github.com/nuri428/skeptic-code",
+      "license": "MIT",
+      "keywords": ["code-review", "audit", "yagni", "kiss", "dry", "code-quality", "skeptic"],
+      "category": "code-quality",
+      "skills": ["./skills/skeptic-code"],
+      "strict": false
+    }
+  ]
+}
