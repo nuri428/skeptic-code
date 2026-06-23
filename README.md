@@ -13,57 +13,72 @@ A Claude Code skill for adversarial code auditing.
 Code review asks: "Is this code correct?"  
 `skeptic-code` asks: **"Should this code exist at all? And if it should — can it survive reality?"**
 
-## Why Existing Tools Are Not Enough
+## Three Commandments
 
-Linters and dead-code analyzers share a hidden assumption: **"if it runs, it belongs."**
+| Principle | Question to ask |
+|-----------|----------------|
+| **YAGNI** — You Aren't Gonna Need It | "Is this required by the current spec, today?" If no → delete. |
+| **KISS** — Keep It Simple | "Is there a simpler way that achieves the same result?" If yes → use it. |
+| **DRY** — Don't Repeat Yourself | "Does this logic already exist — in this repo, or in a dependency?" If yes → reuse it. |
 
-`skeptic-code` rejects that assumption. Four failure classes that existing tools miss:
-
-- **YAGNI violations** — code that executes but serves no current requirement
-- **Silent failures** — `except: pass` / `catch (_) {}` patterns that eat errors on hot paths
-- **Scope creep** — features nobody asked for that felt natural to add
-- **Unverified assumptions** — hardcoded values, ignored return results, missing timeouts
-
-Adversarial framing ("guilty until proven innocent") changes the conclusion even when looking at the same code.
+> YAGNI beats KISS beats DRY in priority. Code that doesn't exist is simpler than simple code.  
+> YAGNI applies to abstractions and optimizations too — never introduce either unless explicitly requested.
 
 ## Installation
 
-```bash
-/install-skill nuri428/skeptic-code
+**Via marketplace (recommended):**
+
+```
+/plugin marketplace add nuri428/skeptic-code
+/plugin install skeptic-code@skepticcode
 ```
 
 ## Usage
 
 ```
-/skeptic-code              # auto-detect scope
-/skeptic-code quick        # top-5 findings, ~2 min
-/skeptic-code deep         # full line-level audit, ~10 min
-/skeptic-code <path>       # specific file or directory
+/skeptic-code:skeptic-code              # auto-detect scope
+/skeptic-code:skeptic-code quick        # top-5 by severity (HIGH first), then blast radius
+/skeptic-code:skeptic-code deep         # full line-level audit
+/skeptic-code:skeptic-code <path>       # specific file or directory
 ```
 
-## The Seven Suspects
+## The Eight Suspects
 
-| Tag | Name | Crime |
-|-----|------|-------|
-| `[GHOST]` | Dead code | Was needed once. No longer. Still haunting. |
-| `[PROPHET]` | Speculative feature | Written for a future that won't come. "We'll probably need..." |
-| `[LIAR]` | Silent failure | Claims to handle errors. Doesn't. Swallows them. |
-| `[TWIN]` | Duplication | Same logic in two places. One of them shouldn't exist. |
-| `[STRANGER]` | Scope creep | Nobody asked for this. Felt natural to add. Wasn't in spec. |
-| `[ORACLE]` | Unverified assumption | Assumes the world cooperates — no validation, no fallback, no test. |
-| `[CLIFF]` | Unbounded failure path | Works until it doesn't. No limit, no retry, no floor. |
-
-`[ORACLE]` and `[CLIFF]` are the two additions beyond the original five. See *Design Rationale* below for why only these two were added and what was deliberately left out.
+| Tag | Name | Crime | Direction |
+|-----|------|-------|-----------|
+| `[GHOST]` | Dead code | Was needed once. No longer. Still haunting. | CUT |
+| `[PROPHET]` | Speculative feature | Written for a future that won't come. "We'll probably need..." | CUT |
+| `[LIAR]` | Silent failure | Claims to handle errors. Doesn't. Swallows them. | FIX |
+| `[TWIN]` | Duplication | Same logic in two places. One of them shouldn't exist. | CUT |
+| `[STRANGER]` | Scope creep | Nobody asked for this. Felt natural to add. Wasn't in spec. | CUT |
+| `[ORACLE]` | Unverified assumption | Assumes the world cooperates — no validation, no fallback, no test. | ADD |
+| `[CLIFF]` | Unbounded failure path | Works until it doesn't. No limit, no retry, no floor. | ADD |
+| `[WHEEL]` | Reinvented wheel | Hand-rolled what a project package already provides. | CUT |
 
 ## How It Works
 
-1. **Read** — full file(s), no skimming
-2. **Pass 1: Hunt** — identify candidates against 15 known offender patterns
-3. **Pass 2: Verify** — grep confirms actual usage before any `[CUT]` verdict
-4. **Report** — prioritized findings with concrete before→after diffs
-5. **Apply** — edits only after user approval, test suite runs after each cut
+Two distinct passes with opposite mindsets:
 
-**Key guarantee**: no `[CUT]` without grep evidence. Uncertain findings become `[QUESTION]` or `[FALSE_ALARM]`, never a silent deletion.
+**Pass 1A — Existence Hunt (items 1–12)**  
+*Deletion bias.* "Can I justify this line against the current spec?" → CUT or FIX
+
+**Pass 1B — Safety Hunt (items 13–18)**  
+*Reinforcement bias.* "Is something missing that should guard this?" → ADD
+
+After both passes, every candidate is verified with grep evidence before a verdict is assigned. No `[CUT]` or `[ADD]` without grep results and line numbers.
+
+| Step | Action |
+|------|--------|
+| 0 | Prerequisites check (test suite, vendored files, CLAUDE.md baseline) |
+| 1 | Read all files — no skimming |
+| 2 | Pass 1A: hunt 12 existence patterns |
+| 3 | Pass 1B: hunt 6 safety patterns |
+| 4 | Pass 2: verify all candidates with grep |
+| 5 | Build report |
+| 6 | Present findings — user approves before any edit |
+| 7 | Apply approved changes, run tests after each |
+
+**Clean result is valid.** If 18 patterns return nothing, the output is `CLEAN` — no forced findings.
 
 ## Scope and Limitations
 
@@ -71,30 +86,6 @@ This skill does **not** cover:
 - Race conditions — cannot be reliably detected via static grep; false positives here destroy trust
 - Runtime failure scenarios requiring profiling or dynamic analysis
 - Architectural failure modes
-- Coding process guidance (when to ask, how to plan)
-
-For those, use a dedicated architecture review or pre-mortem session.
-
----
-
-## Design Rationale
-
-The expansion from 5 to 7 suspects was itself validated through the two methodologies this skill draws from.
-
-**Karpathy "Think Before Coding" applied to the expansion:**  
-What assumptions was the expansion making?
-
-- `[RACE]` assumed grep can detect race conditions reliably → **rejected**: static analysis produces too many false positives on concurrency issues
-- Multi-mode command structure (`exist` / `assume` / `fail` / `full`) — Simplicity First: the request was broader coverage, not a new command interface → **rejected as [PROPHET]**
-
-**Pre-mortem on the expansion:**  
-"The expanded skill failed after six months — why?"
-
-- High false positive rate on `[RACE]` wasted dev time and destroyed trust in findings
-- Four-mode structure confused users: "which mode should I run?" led to running none
-- `[ORACLE]` / `[BLIND]` / `[TIGHTROPE]` overlapped conceptually → collapsed into `[ORACLE]`
-
-What survived: two clearly distinct suspects with grep-verifiable patterns, added to the existing Wanted List without changing the command interface.
 
 ---
 
@@ -103,9 +94,9 @@ What survived: two clearly distinct suspects with grep-verifiable patterns, adde
 `skeptic-code` was shaped by two sources:
 
 **[Andrej Karpathy's LLM coding guidelines](https://x.com/karpathy/status/2015883857489522876)**  
-The *Simplicity First* principle — no features beyond what was asked, no abstractions for single-use code — is the direct ancestor of `[PROPHET]`, `[STRANGER]`, and the helper-called-once check. *Think Before Coding* — surface assumptions, ask before implementing — is the ancestor of `[ORACLE]`. Thank you for articulating what senior engineers instinctively enforce but rarely write down.
+*Simplicity First* — no features beyond what was asked, no abstractions for single-use code — is the ancestor of `[PROPHET]`, `[STRANGER]`, and the helper-called-once check. *Think Before Coding* — surface assumptions before implementing — is the ancestor of `[ORACLE]`.
 
 **Pre-mortem methodology** (Gary Klein / Daniel Kahneman)  
-Assuming failure has already occurred and working backwards forces a different quality of scrutiny than optimistic review. The adversarial "guilty until proven innocent" stance is pre-mortem applied at the line level. `[CLIFF]` — unbounded growth, missing timeout, no retry floor — is pre-mortem's "how does this fail under real load?" compressed into a grep-verifiable pattern. Thank you for the framework.
+Assuming failure has already occurred and working backwards forces a different quality of scrutiny than optimistic review. The adversarial "guilty until proven innocent" stance is pre-mortem applied at the line level. `[CLIFF]` is pre-mortem's "how does this fail under real load?" compressed into a grep-verifiable pattern.
 
 Both approaches are far broader than what this skill covers. The limitations above are intentional, not oversights.
