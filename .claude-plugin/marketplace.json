@@ -11,7 +11,7 @@
       "displayName": "Skeptic Code",
       "source": "./",
       "description": "Adversarial code audit driven by YAGNI, KISS, and DRY. Three passes: existence checks (should this code be here?), safety checks (is this code dangerous?), and independent verification (a fresh checker that did not write the change tries to break it). Eight suspects: ghost, prophet, liar, twin, stranger, oracle, cliff, wheel.",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "author": {
         "name": "강재호",
         "email": "greennuri@gmail.com"

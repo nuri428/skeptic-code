@@ -1,6 +1,6 @@
 ---
 name: skeptic-code
-description: Adversarial code audit driven by YAGNI, KISS, and DRY. Every line is guilty until proven innocent. Two hunt passes — Existence (should this code be here?) and Safety (is this code dangerous?) — every candidate verified with evidence, then a third pass of Independent Verification, where a fresh checker that did not write the change tries to break it. Finds ghosts, prophets, liars, twins, strangers, oracles, cliffs, and wheels. HIGH verdicts require reproduction, not pattern matching. Before any new implementation, scans existing project packages for prior art. Clean result is a valid outcome — no forced findings. Produces a prioritized report with concrete before→after diffs.
+description: Adversarial code audit driven by YAGNI, KISS, and DRY. Every line is guilty until proven innocent. Two hunt passes — Existence (should this code be here?) and Safety (is this code dangerous?) — every candidate verified with evidence, then a third pass of Independent Verification, where a fresh checker that did not write the change tries to break it. Finds ghosts, prophets, liars, twins, strangers, oracles, cliffs, and wheels. Runtime HIGH verdicts require reproduction, not pattern matching. Before any new implementation, scans existing project packages for prior art. Clean result is a valid outcome — no forced findings. Produces a prioritized report with concrete before→after diffs.
 allowed-tools: [Read, Grep, Glob, Bash, Edit, Write, Task, AskUserQuestion, TodoWrite]
 ---
 
@@ -112,7 +112,9 @@ verify_existence:
   reproduce_liar_fix: true  # items 11–12: make the swallowed error occur, at any severity
 
 rule: ALL must pass.
-      Any "unknown" → downgrade to [QUESTION] or [FALSE_ALARM].
+      Any "unknown" → [QUESTION] or [FALSE_ALARM] — except a HIGH claim whose required
+      reproduction could not run, which becomes [UNREPRODUCED-HIGH], severity kept
+      (see "Reproduction beats reading").
 ```
 
 Required evidence:
@@ -149,7 +151,7 @@ prove a change works. **A guard is verified by making it fire, not by reading it
 
 | Finding | Reproduction |
 |---|---|
-| Anything you intend to rate HIGH | Required |
+| A **runtime-defect claim** you intend to rate HIGH | Required |
 | Any `ADD` on a runnable surface | Required |
 | Any `FIX` on `[LIAR]` — the swallowed error | Required: make the error occur, watch what the code does with it |
 | LOW / MEDIUM `CUT` settled by grep counts | Optional |
@@ -171,11 +173,21 @@ Running: cp client.py $T/ && stub the transport to always fail && run it
 Result:  1.2M iterations in 30s, no exit, no backoff. Reproduced → HIGH.
 ```
 
+A HIGH claim with **no runtime failure to fire** — 100+ lines of `[STRANGER]` scope creep, a
+`[TWIN]` pair — is evidenced by grep against the spec and the codebase instead; reproduction does
+not apply to it, and nothing below follows from its absence. An environment-assumption `[ORACLE]`
+(hardcoded URL, IP, path) sits at MEDIUM per the Severity table unless its failure is actually
+fired — pattern alone never makes it HIGH.
+
 Where the table above says **Required**, a claim that could not be reproduced does not become
-`CUT` / `FIX` / `ADD` — it becomes `[QUESTION]` at its original severity — except a HIGH claim, which
-drops to MEDIUM, because an unreproduced claim cannot block — and the report names what could not be run and why — missing runtime,
-credentials, network. Silence about an unrun check is
-how a false pass gets written down as a verdict.
+`CUT` / `FIX` / `ADD` — and it is **not downgraded** either. "Could not judge" is a different
+statement from "less severe"; rounding the first into the second is the same mistake Pass 3
+forbids when it refuses to convert `UNVERIFIED` into a pass. A HIGH claim becomes
+`[UNREPRODUCED-HIGH]`: severity kept, verdict suspended, and the report names what could not be
+run and why — missing runtime, credentials, network (routine in an air-gapped audit). Whether it
+blocks is **the user's call at Step 6**, not the auditor's. Anything below HIGH becomes
+`[QUESTION]` at its original severity. Silence about an unrun check is how a false pass gets
+written down as a verdict.
 
 If you cannot fill `evidence` with grep results and line numbers → it is not a verdict.
 
@@ -242,16 +254,18 @@ Apply the matching verification protocol (existence or safety) to each candidate
 Read ±30 lines around each finding.
 
 - All checks pass → assign verdict (CUT / FIX / ADD)
-- Any check fails or is unknown → `[QUESTION]` or `[FALSE_ALARM]`
-- Rating HIGH, a `[LIAR]` FIX, or adding a guard to a runnable surface → **reproduce it first**
-  (see *Reproduction beats reading*). A pattern match is a candidate, not a verdict.
+- Any check fails or is unknown → `[QUESTION]` or `[FALSE_ALARM]` — except a HIGH claim whose
+  required reproduction could not run, which becomes `[UNREPRODUCED-HIGH]`, severity kept
+- Rating HIGH on a **runtime-defect claim**, a `[LIAR]` FIX, or adding a guard to a runnable
+  surface → **reproduce it first** (see *Reproduction beats reading*; non-runtime HIGHs are
+  grep-evidenced instead). A pattern match is a candidate, not a verdict.
 
 ### Step 5: Build Report
 
 ```yaml
 skeptic_code:
   scope: "<what was audited>"
-  verdict_counts: {cut: N, fix: N, add: N, question: N, false_alarms: N}
+  verdict_counts: {cut: N, fix: N, add: N, question: N, unreproduced_high: N, false_alarms: N}
 
   findings:
     - id: SC-001
@@ -292,6 +306,15 @@ skeptic_code:
       title: "Abstract class with one concrete implementation"
       question: "Is a second implementation planned within the current phase?"
 
+    - id: SC-004
+      tag: "[CLIFF]"
+      direction: ADD
+      verdict: UNREPRODUCED-HIGH
+      location: "worker.py:71"
+      title: "Unbounded queue consumer — reproduction requires the production broker"
+      evidence: "grep: no max batch, no backpressure. Could not run: broker unreachable from audit env."
+      note: "Severity kept at HIGH; blocking is the user's call at Step 6."
+
   false_alarms:
     - what: "No auth on /api endpoints"
       reason: "CLAUDE.md line 47: 'single-user assumption, no auth in v0.1'"
@@ -325,7 +348,11 @@ skeptic_code:
 Say up front whether Pass 3 will run — the table in Step 8 decides. In short: applying anything
 that changes behaviour makes independent verification mandatory before the audit is called done.
 
-Group findings by direction (CUT / FIX / ADD), then ask via AskUserQuestion:
+Group findings by direction (CUT / FIX / ADD). `[UNREPRODUCED-HIGH]` findings get their own
+group, presented first, with their own question per finding — **block** (treat as HIGH until it
+can be run), **apply anyway** (accept the proposed change unverified), or **defer** (leave in the
+report). "Apply all verdicts now" never covers them — a suspended verdict is not a verdict. Then
+ask via AskUserQuestion:
 - Apply all verdicts now (Recommended)
 - Walk through each finding first
 - Apply specific IDs only (this option triggers a follow-up question listing the IDs)
@@ -374,200 +401,15 @@ and formatting that cannot change behaviour are exempt. Diff size is not an exem
 direction — a one-line change to an authorization check is behavioural, a 900-line doc reflow is
 not. When a change is ambiguous, treat it as behavioural.
 
-#### What makes a checker independent
+The full protocol — independence conditions, dispatch and the checker's brief, `change_ref`,
+the three verdicts, the envelope, re-dispatch etiquette, and both escalation caps — lives in
+**`references/pass3-verification.md`. Read that file before dispatching a checker**; do not run
+Pass 3 from memory of it. On a report-only run nothing is dispatched, so nothing is read — that
+is why the protocol is not inlined here.
 
-All four must hold:
-
-1. **Fresh context** — it starts from the diff and the goal, not from this audit's reasoning.
-2. **Did not author the change** — a past maker is permanently disqualified as that change's checker.
-3. **Not a fork of the maker** — a continuation of this session carries the assumptions under test.
-4. **Read-only** — if it edits source it has joined the maker set and its verdict is void.
-
-Independence is about what the checker reproduces, not about which model ran it. Nothing enforces
-it mechanically. That is exactly why the honest report when no checker can be
-reached is `UNVERIFIED`, not a verdict you were in no position to issue.
-
-#### Dispatch
-
-Spawn a fresh general-purpose subagent (Task tool, `subagent_type: general-purpose`, or any
-equivalent independent context). Independence condition 4 is not enforced by the harness — a
-general-purpose subagent inherits Edit and Write — so the read-only restriction has to be stated
-in the brief and checked in the verdict. Hand it exactly:
-
-- the goal in one paragraph — which findings were applied, and what each was meant to change
-- the scope — paths, or the diff range
-- the commands you ran and their exit status
-- the verdict envelope schema below, and which lane this checker is
-- the revision under review
-
-**On `change_ref`.** Step 7 edits files; it does not commit them, so the commit alone does not
-identify what the checker is looking at. Record the commit **and** the tree state:
-
-```bash
-git rev-parse --short HEAD 2>/dev/null || echo NOCOMMIT   # baseline, if there is one
-git status --porcelain=v1 -uall                           # every path with uncommitted state
-git diff HEAD 2>/dev/null                                 # the change in tracked files
-```
-
-Hand the checker all three **commands verbatim and their outputs**, and have it re-run them
-before it emits a verdict. Any difference — a new path, a changed hunk — means the revision
-moved → `UNVERIFIED`. One exception: differences consisting only of untracked artifact paths
-created by re-running the handed evidence commands (`__pycache__/`, `.pytest_cache/`, coverage
-files) are noted in `evidence_checked`, not treated as drift — and avoided where possible
-(`PYTHONDONTWRITEBYTECODE=1`, `pytest -p no:cacheprovider`).
-
-For the compact `change_ref` label in reports and envelopes, both sides derive it the same way:
-
-```bash
-echo "$(git rev-parse --short HEAD 2>/dev/null || echo NOCOMMIT)+$( (git status --porcelain=v1 -uall; git diff HEAD 2>/dev/null) | shasum | cut -c1-12 )"
-```
-
-The digest is a label for matching reports to reviews; **drift detection compares the raw
-outputs**, which also show *what* moved.
-
-Two blind spots to state out loud rather than paper over: `git status` lists untracked paths but
-never their **contents**, so a file Step 7 created can be rewritten without moving any of the three
-(the maker lists a `shasum` for every file Step 7 created in the handed material, and a checker
-that reads such a file re-hashes it against that list); and an untracked nested repo appears
-as one `?? sub/` line hiding its whole subtree. Outside a git repo, or when `HEAD` does not resolve,
-`shasum` the audited files instead and say so in `evidence_checked`.
-
-Do **not** hand it your conclusion. "I verified this works" is the claim under test, not context.
-
-Checker's brief:
-
-```
-You are the checker, not the implementer. You did not write this change, and you must
-not start writing it now. Your job is to break the claim that the current code satisfies
-the requirement.
-
-- Read the goal, the diff, and the evidence you were handed. Judge the code as it is right
-  now, not as the summary describes it — the summary is one of the things under test.
-- Check that the evidence you were handed was produced from the revision you are reviewing.
-  Evidence from an earlier revision is stale and cannot support APPROVE.
-- Reproduce. Construct the input the change claims to handle — including the failure it
-  was written to catch — and run it. Reading does not approve runtime behaviour.
-- For each CUT: re-grep the removed symbol yourself. Confirm zero remaining references,
-  including dynamic ones (getattr, string dispatch, templates, config).
-- For each ADD: make the new guard fire. A guard never made to fire is unverified.
-- For each FIX: trigger the error path the fix claims to handle.
-- Hunt counter-examples in this order: security, data integrity, correctness, performance.
-  One reproduced defect beats five speculative ones.
-- Bash is for reproduction, never for repair. Never run `git push`, `git reset --hard`,
-  `git checkout --`, `rm`, `mv`, or anything else that mutates the tree.
-- Never print a secret, credential or token. Cite `file:line`; do not paste the value.
-- READ-ONLY. Do not use Edit or Write on anything under the repository, and do not run a
-  formatter or fixer. Scratch work goes in `mktemp -d` — copy a file out and break the copy.
-  The working tree must be exactly as you found it when you finish; confirm it and say so.
-  Findings go back as suggestions; if you edit the source your verdict is void.
-- Re-run the three change_ref commands you were handed, at the start and again at the end.
-  Any difference: UNVERIFIED — you reviewed a state that no longer exists.
-- Confirm the exit statuses you were handed by re-running those commands yourself. Evidence
-  that was never produced, or produced from an earlier state, cannot support APPROVE.
-- Check that nothing beyond the named findings was changed — extra cleanup that crept into
-  the same diff is part of what you are reviewing.
-- A tool error, timeout, rate limit, or missing runtime is never an APPROVE — name it as
-  unrun. If what you could not run **is** the central claim, the verdict is UNVERIFIED, not
-  REQUEST_CHANGES: "I could not judge this" is a different statement from "this is broken",
-  and reporting it as broken sends the maker to fix a defect nobody demonstrated.
-- If you authored or requested this change, or are a fork or continuation of that session,
-  do not review it — return UNVERIFIED with that reason.
-- Untracked artifact paths your own evidence re-runs created (caches, __pycache__) are
-  noted in evidence_checked, not counted as drift — avoid creating them where you can.
-- Verdict semantics: APPROVE = you tried to break the claim and failed, zero HIGH findings.
-  REQUEST_CHANGES = at least one HIGH finding, reproduced. MEDIUM and LOW findings are
-  reported, never blocking. HIGH means a reproduced wrong result, data loss, or security
-  hole — not style. UNVERIFIED = you could not judge.
-- Return exactly one verdict envelope, in the schema you were handed, naming your lane.
-```
-
-#### The three verdicts
-
-There are exactly three. "Approve with comments" is a category error — decide which one it is.
-
-| Verdict | Meaning | Obligation |
-|---|---|---|
-| `APPROVE` | The checker tried to break the claim against the current revision and failed. No HIGH finding. | Done — for **this** revision only. Any further edit voids it. |
-| `REQUEST_CHANGES` | At least one HIGH finding, reproduced. | Fix exactly those findings — nothing more — re-run the evidence, dispatch a **fresh** checker. In a two-lane run, re-dispatch both lanes. |
-| `UNVERIFIED` | No judgement was reached: the checker never ran, returned empty or malformed output, timed out, was rate-limited, or reviewed a revision that has since moved. | Retry with a different checker, runtime, or strategy. **Never convert it to a pass.** |
-
-With two lanes, the worst verdict wins: `UNVERIFIED` > `REQUEST_CHANGES` > `APPROVE`, and the
-combined result carries that verdict's obligation. Any edit after a lane reported voids **every**
-lane — all required lanes re-dispatch together against the new `change_ref`, because an APPROVE
-belongs to one revision only.
-
-Severity uses this skill's own three levels — HIGH / MEDIUM / LOW (see *Severity* below). MEDIUM and
-LOW findings are reported, not blocking; rating a naming nit HIGH trains the loop to ignore you.
-
-#### Verdict envelope
-
-```json
-{
-  "schema": "skeptic.review/v1",
-  "verdict": "APPROVE|REQUEST_CHANGES|UNVERIFIED",
-  "task_ref": "skeptic-code run on <scope> — applied SC-001, SC-002",
-  "change_ref": "<short sha>+<state-hash>",
-  "lane": "correctness",
-  "working_tree": "unchanged",
-  "findings": [
-    {
-      "severity": "HIGH|MEDIUM|LOW",
-      "finding_ref": "SC-002 — or NEW-1 for a defect outside the applied findings",
-      "location": "file:line",
-      "description": "what is wrong, and how you reproduced it",
-      "suggestion": "the smallest change that fixes it"
-    }
-  ],
-  "evidence_checked": ["commands you ran and what they returned", "what you could not run, and why"],
-  "summary": "one paragraph: what you tried to break, and why the verdict follows"
-}
-```
-
-The envelope is the contract, not decoration: a checker response that does not end with a parseable
-`skeptic.review/v1` object, or that reports `working_tree` as anything but `unchanged`, is
-`UNVERIFIED` — not a verdict you read the tone of.
-
-#### Failure modes that void a verdict
-
-- Approving because the diff *looks* right, without ever executing it.
-- Trusting the maker's summary about what the code does.
-- Inventing a fourth verdict word: "APPROVE with comments" is one of the three — decide which.
-- Fixing the defect yourself: the maker must fix it, or the loop learns nothing.
-
-Before accepting an envelope, the maker checks one thing the checker cannot: was the central claim
-**reproduced** rather than read, and does every finding carry `file:line`, a reproduction, and a
-concrete suggestion? A tidy envelope around an unexecuted review is the failure this step exists to
-catch.
-
-#### Re-dispatch etiquette
-
-Every round gets a checker with a fresh context — reusing the previous one is asking someone to
-re-read their own conclusion. When you come back for round N+1, say plainly:
-
-- what changed since the last round, and which finding each edit addresses
-- that it should re-reproduce the original defect rather than take your word that it is gone
-- that it is invited to attack **the fix itself** — a fix written under review pressure is exactly
-  where the next defect hides
-
-#### Escalate after two
-
-When the same finding comes back `REQUEST_CHANGES` twice in a row, **stop**. Two failed fixes on
-one defect mean the diagnosis is wrong, and the third attempt usually enlarges the damage rather
-than the understanding.
-
-Surface to the user: the finding, both attempted fixes, the reproduction command and its output,
-and what you now believe is actually wrong. Do not keep looping, do not lower the severity, and do
-not restate the goal so that the current code satisfies it.
-
-#### Never report the audit complete when
-
-- there is no successful evidence produced **after** the last edit — the test suite where one
-  exists, and otherwise the reproduction that shows the change does what it claims
-- any condition in the `APPROVE` row above is unmet, or a required lane is missing
-
-In either case the honest report is what is missing — not "done".
-
----
+In one line: a fresh checker that did not write the change tries to break it — reproducing, not
+reading — and returns exactly one of `APPROVE` / `REQUEST_CHANGES` / `UNVERIFIED`. No completion
+claim without an `APPROVE` for the code as it stands now.
 
 ## Severity
 
@@ -643,7 +485,7 @@ Applying SC-003 (ADD)...
 Running tests... 116 passed. ✓
 
 Pass 3 — Independent Verification (1 FIX + 2 ADD applied → required, 1 lane)
-  change_ref: 4b1c9de+a91f30c2e118   (label derived per "On change_ref"; raw outputs handed too)
+  change_ref: 4b1c9de+a91f30c2e118   (label per the reference's "On change_ref"; raw outputs handed too)
   Dispatching fresh checker — read-only, no audit context, not handed my conclusion...
 
   Round 1 → REQUEST_CHANGES
