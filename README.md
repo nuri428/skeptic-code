@@ -57,7 +57,7 @@ Code review asks: "Is this code correct?"
 
 ## How It Works
 
-Two distinct passes with opposite mindsets:
+Two hunt passes with opposite mindsets, then an adversarial verification loop:
 
 **Pass 1A — Existence Hunt (items 1–12)**  
 *Deletion bias.* "Can I justify this line against the current spec?" → CUT or FIX
@@ -65,7 +65,10 @@ Two distinct passes with opposite mindsets:
 **Pass 1B — Safety Hunt (items 13–18)**  
 *Reinforcement bias.* "Is something missing that should guard this?" → ADD
 
-After both passes, every candidate is verified with grep evidence before a verdict is assigned. No `[CUT]` or `[ADD]` without grep results and line numbers.
+After both passes, every candidate is verified with grep evidence before a verdict is assigned. No `[CUT]` or `[ADD]` without grep results and line numbers — and a HIGH verdict additionally requires **reproduction**: a guard is verified by making it fire, not by reading it.
+
+**Pass 3 — Independent Verification (maker ≠ checker)**  
+Nobody grades their own exam. After approved changes are applied, a **fresh checker that did not write the change** — a separate context, handed the diff and the evidence but not the auditor's conclusions — tries to break it: re-running the evidence, re-reproducing the defects each fix claims to close, and attacking the fixes themselves. It returns exactly one of three verdicts: `APPROVE`, `REQUEST_CHANGES`, or `UNVERIFIED`. A checker that crashes or times out has told you nothing — reviewer death is not approval. When the same finding comes back `REQUEST_CHANGES` twice, the loop stops and escalates to the human. Changes touching auth, payments, secrets, or destructive data paths get two lanes: correctness and security.
 
 | Step | Action |
 |------|--------|
@@ -77,6 +80,7 @@ After both passes, every candidate is verified with grep evidence before a verdi
 | 5 | Build report |
 | 6 | Present findings — user approves before any edit |
 | 7 | Apply approved changes, run tests after each |
+| 8 | Pass 3: dispatch an independent checker — fix, re-dispatch, until `APPROVE` |
 
 **Clean result is valid.** If 18 patterns return nothing, the output is `CLEAN` — no forced findings.
 
@@ -99,4 +103,7 @@ This skill does **not** cover:
 **Pre-mortem methodology** (Gary Klein / Daniel Kahneman)  
 Assuming failure has already occurred and working backwards forces a different quality of scrutiny than optimistic review. The adversarial "guilty until proven innocent" stance is pre-mortem applied at the line level. `[CLIFF]` is pre-mortem's "how does this fail under real load?" compressed into a grep-verifiable pattern.
 
-Both approaches are far broader than what this skill covers. The limitations above are intentional, not oversights.
+**[claude-forge](https://github.com/sangrokjung/claude-forge)** (MIT)  
+The Pass 3 verification loop — maker ≠ checker, the three verdicts, reviewer-death-is-not-approval, and escalate-after-two — is adapted from claude-forge's `adversarial-reviewer` agent, `review-loop` skill, and `rules/adversarial-review.md`.
+
+All of these approaches are far broader than what this skill covers. The limitations above are intentional, not oversights.
