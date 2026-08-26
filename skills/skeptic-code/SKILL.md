@@ -29,11 +29,13 @@ Every line is a liability. Every abstraction is a bet. Every "just in case" is a
 ## Usage
 
 ```
-/skeptic-code              # auto-detect scope
-/skeptic-code quick        # top-5 by severity (HIGH first), then by blast radius (most callsites affected)
-/skeptic-code deep         # full line-level audit
-/skeptic-code <path>       # specific file or directory
+/skeptic-code:skeptic-code              # auto-detect scope
+/skeptic-code:skeptic-code quick        # top-5 by severity (HIGH first), then by blast radius (most callsites affected)
+/skeptic-code:skeptic-code deep         # full line-level audit
+/skeptic-code:skeptic-code <path>       # specific file or directory
 ```
+
+(Installed standalone rather than as a plugin, the command is `/skeptic-code` without the prefix.)
 
 ## The Eight Suspects
 
