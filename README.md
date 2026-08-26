@@ -2,7 +2,9 @@
 
 > "Innocent until proven guilty? Not here. **Deleted until proven necessary.**"
 
-A Claude Code skill for adversarial code auditing.
+A Claude Code skill for adversarial engineering — one epistemology (*nothing gets a verdict
+without evidence*), five modes: implementation guard, focused review, full audit, bug
+investigation, architecture review.
 
 | | |
 |--|--|
@@ -36,11 +38,27 @@ Code review asks: "Is this code correct?"
 ## Usage
 
 ```
-/skeptic-code:skeptic-code              # auto-detect scope
-/skeptic-code:skeptic-code quick        # top-5 by severity (HIGH first), then blast radius
-/skeptic-code:skeptic-code deep         # full line-level audit
-/skeptic-code:skeptic-code <path>       # specific file or directory
+/skeptic-code:skeptic-code                  # route by request shape
+/skeptic-code:skeptic-code auto             # prevention guard while implementing
+/skeptic-code:skeptic-code quick            # top-5 by severity (HIGH first), then blast radius
+/skeptic-code:skeptic-code deep             # full line-level audit
+/skeptic-code:skeptic-code bug              # symptom-first defect investigation
+/skeptic-code:skeptic-code architecture     # boundary and dependency review
+/skeptic-code:skeptic-code <path>           # specific file or directory
 ```
+
+## Five Modes
+
+| Mode | Priority stack | What it is |
+|---|---|---|
+| `AUTO` | Scope > Correctness > Simplicity | Lightweight guard while implementing — blocks scope creep, speculative abstraction, reinvented wheels, silent failure in **new** code. Diff-scoped, no approval ceremony. |
+| `QUICK` | Severity > Blast Radius > Simplicity | Focused review — the DEEP pipeline, top-5 findings only. |
+| `DEEP` | YAGNI > KISS > DRY | The full 18-offender line-level audit. |
+| `BUG` | Correctness > Reproduction > Root Cause > Minimal Fix > Simplicity | Symptom-first: reproduce, state the broken invariant, fix the first violation (not the last exception), leave a regression test. Eight bug suspects incl. contract mismatch, edge cases, state, ordering, leaks, drift. |
+| `ARCHITECTURE` | Boundary > Dependency Direction > Coupling > Simplicity > Abstraction Cost | Verifies boundaries, dependency direction, coupling, contracts — with the rule that *single implementation ≠ unnecessary abstraction* (`[BOUNDARY]` → KEEP) and that taste ("too many layers") is never evidence. |
+
+BUG and ARCHITECTURE protocols live in `skills/skeptic-code/references/` and are loaded only
+when those modes run — audits don't pay their context cost.
 
 ## The Eight Suspects
 
@@ -54,6 +72,7 @@ Code review asks: "Is this code correct?"
 | `[ORACLE]` | Unverified assumption | Assumes the world cooperates — no validation, no fallback, no test. | ADD |
 | `[CLIFF]` | Unbounded failure path | Works until it doesn't. No limit, no retry, no floor. | ADD |
 | `[WHEEL]` | Reinvented wheel | Hand-rolled what a project package already provides. | CUT |
+| `[BOUNDARY]` | Deliberate seam | Not a crime — a boundary whose value is separation, not implementation count. | KEEP |
 
 ## How It Works
 
@@ -65,7 +84,7 @@ Two hunt passes with opposite mindsets, then an adversarial verification loop:
 **Pass 1B — Safety Hunt (items 13–18)**  
 *Reinforcement bias.* "Is something missing that should guard this?" → ADD
 
-After both passes, every candidate is verified with grep evidence before a verdict is assigned. No `[CUT]` or `[ADD]` without grep results and line numbers — and a HIGH verdict additionally requires **reproduction**: a guard is verified by making it fire, not by reading it.
+After both passes, every candidate is verified with grep evidence before a verdict is assigned. No `[CUT]` or `[ADD]` without grep results and line numbers — and a **runtime** HIGH verdict additionally requires **reproduction** — a guard is verified by making it fire, not by reading it (unreproducible-for-environment-reasons HIGHs become `[UNREPRODUCED-HIGH]`, severity kept, blocking decided by the user).
 
 **Pass 3 — Independent Verification (maker ≠ checker)**  
 Nobody grades their own exam. After approved changes are applied, a **fresh checker that did not write the change** — a separate context, handed the diff and the evidence but not the auditor's conclusions — tries to break it: re-running the evidence, re-reproducing the defects each fix claims to close, and attacking the fixes themselves. It returns exactly one of three verdicts: `APPROVE`, `REQUEST_CHANGES`, or `UNVERIFIED`. A checker that crashes or times out has told you nothing — reviewer death is not approval. When the same finding comes back `REQUEST_CHANGES` twice, the loop stops and escalates to the human. Changes touching auth, payments, secrets, or destructive data paths get two lanes: correctness and security.
@@ -87,9 +106,9 @@ Nobody grades their own exam. After approved changes are applied, a **fresh chec
 ## Scope and Limitations
 
 This skill does **not** cover:
-- Race conditions — cannot be reliably detected via static grep; false positives here destroy trust
+- Race conditions as confirmed findings — in BUG mode `[RACE]` is candidate-only: pattern alone
+  is SUSPECT, and only deterministic proof or runtime reproduction makes it a BUG
 - Runtime failure scenarios requiring profiling or dynamic analysis
-- Architectural failure modes
 
 ---
 

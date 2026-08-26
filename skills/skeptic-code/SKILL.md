@@ -1,18 +1,67 @@
 ---
 name: skeptic-code
-description: Adversarial code audit driven by YAGNI, KISS, and DRY. Every line is guilty until proven innocent. Two hunt passes — Existence (should this code be here?) and Safety (is this code dangerous?) — every candidate verified with evidence, then a third pass of Independent Verification, where a fresh checker that did not write the change tries to break it. Finds ghosts, prophets, liars, twins, strangers, oracles, cliffs, and wheels. Runtime HIGH verdicts require reproduction, not pattern matching. Before any new implementation, scans existing project packages for prior art. Clean result is a valid outcome — no forced findings. Produces a prioritized report with concrete before→after diffs.
+description: Adversarial engineering skill that verifies claims and changes with evidence, in five modes — AUTO (lightweight guard while implementing any coding request), QUICK (top-5 focused review), DEEP (full YAGNI/KISS/DRY line-level audit of the 18 offenders), BUG (symptom-first behavioural defect investigation with reproduction, invariant tracing and regression tests), ARCHITECTURE (boundary, dependency-direction and coupling review). Nothing gets a verdict without evidence — a pattern match is only a candidate, runtime HIGH claims require reproduction, clean result is valid, and material changes get independent verification by a fresh checker (Pass 3). Use when implementing or refactoring, reviewing code, running a full audit, investigating an error or regression, or evaluating structure and layering.
 allowed-tools: [Read, Grep, Glob, Bash, Edit, Write, Task, AskUserQuestion, TodoWrite]
 ---
 
-# Skeptic-Code — Adversarial Code Audit
+# Skeptic-Code — Adversarial Engineering Audit
 
-> "Innocent until proven guilty? Not here.  
->  **Deleted until proven necessary.**"
+> **Nothing gets a verdict without evidence.**
+>
+> Code must justify its existence. Abstractions must justify their boundaries.
+> Guards must justify their failure model. Bug fixes must restore a demonstrated invariant.
+> Architecture must justify its dependency direction.
 
-Code review asks: "Is this code correct?"  
-Skeptic-code asks: "**Should this code exist at all? And if it should — can it survive reality?**"
+Code review asks: "Is this code correct?"
+Skeptic-code asks: "**Can this claim survive evidence — and this code, reality?**"
 
-Every line is a liability. Every abstraction is a bet. Every "just in case" is a cost.
+One epistemology, five modes. The deletion creed — *"innocent until proven guilty? Not here.
+Deleted until proven necessary"* — is DEEP's law, not a universal one: a bug hunt puts
+correctness before parsimony, and an architecture review weighs boundaries before line count.
+
+## One Epistemology, Five Modes
+
+Every mode obeys the same invariants:
+
+- **Evidence before verdict.** A pattern match is only a candidate.
+- **Reproduction beats speculation** — runtime HIGH claims require it where a runtime exists
+  (`[UNREPRODUCED-HIGH]` where it does not).
+- **Clean result is valid.** No forced findings, ever.
+- **Fix the source, not the symptom.**
+- **Maker ≠ checker.** Material changes get independent verification (Pass 3).
+
+What changes per mode is the **priority stack** — which concern wins when they conflict:
+
+```text
+AUTO          Scope > Correctness > Simplicity
+QUICK         Severity > Blast Radius > Simplicity
+DEEP          YAGNI > KISS > DRY
+BUG           Correctness > Reproduction > Root Cause > Minimal Fix > Simplicity
+ARCHITECTURE  Boundary > Dependency Direction > Coupling > Simplicity > Abstraction Cost
+```
+
+| Mode | Is | Protocol lives in |
+|---|---|---|
+| `AUTO` | Prevention layer while implementing a coding request — cheap, diff-scoped | this file, below |
+| `QUICK` | Focused review — the DEEP pipeline, top-5 by severity then blast radius | this file |
+| `DEEP` | Full line-level audit — 18 offenders, both hunt passes | this file |
+| `BUG` | Symptom-first behavioural defect investigation | `references/bug-mode.md` — **read on entry** |
+| `ARCHITECTURE` | Boundary / dependency-direction / coupling review | `references/architecture-mode.md` — **read on entry** |
+
+### Mode router
+
+With no explicit mode, route by the shape of the request:
+
+```text
+"이 기능 구현해줘" — any implementation or refactor request      → AUTO (while you build)
+"이 코드 이상한 데 찾아줘" — review this change/file             → QUICK
+"전체적으로 싹 감사해줘" — full audit                            → DEEP
+"왜 여기서 NoneType 에러가 나지?" — error, failure, regression   → BUG
+"이 구조 괜찮아?" — layering, boundaries, dependencies           → ARCHITECTURE
+```
+
+An explicit mode or path argument always wins. BUG and ARCHITECTURE are entered only through
+their reference file — never run them from memory of this table.
 
 ## Three Commandments
 
@@ -26,18 +75,75 @@ Every line is a liability. Every abstraction is a bet. Every "just in case" is a
 > DRY's scope extends beyond the file and beyond the repo: **check project packages first.**  
 > YAGNI applies to abstractions and optimizations too — never introduce either unless explicitly requested.
 
+This stack governs DEEP and QUICK (and AUTO's prior-art rule is DRY's). BUG and ARCHITECTURE
+rank differently — see the priority stacks above.
+
 ## Usage
 
 ```
-/skeptic-code:skeptic-code              # auto-detect scope
-/skeptic-code:skeptic-code quick        # top-5 by severity (HIGH first), then by blast radius (most callsites affected)
-/skeptic-code:skeptic-code deep         # full line-level audit
-/skeptic-code:skeptic-code <path>       # specific file or directory
+/skeptic-code:skeptic-code                  # route by request shape (see Mode router)
+/skeptic-code:skeptic-code auto             # prevention guard while implementing
+/skeptic-code:skeptic-code quick            # top-5 by severity (HIGH first), then blast radius
+/skeptic-code:skeptic-code deep             # full line-level audit
+/skeptic-code:skeptic-code bug              # symptom-first defect investigation
+/skeptic-code:skeptic-code architecture     # boundary and dependency review
+/skeptic-code:skeptic-code <path>           # audit a specific file or directory
 ```
 
 (Installed standalone rather than as a plugin, the command is `/skeptic-code` without the prefix.)
 
-## The Eight Suspects
+## AUTO Mode — the Prevention Layer
+
+AUTO is not an audit. It runs **while implementing a coding request** and stops new debt at the
+door: unrequested features, speculative abstraction, reimplementing what exists, new duplication,
+silent failure, unguarded new external boundaries. It must not slow implementation down — no
+18-item scan, no repo-wide line audit, no reproduction runs per request.
+
+Scope = `git diff` + directly affected symbols + direct callers/callees when needed. Whole-repo
+search only to answer four questions: does this already exist (code or dependency)? does it
+duplicate something? does it cross an architecture boundary? which callsites does this symbol
+change?
+
+**A0 — before coding.** Identify the requested scope. Search existing implementations and
+dependencies (`package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`;
+existing helpers, services, adapters, providers). Read `CLAUDE.md` / `README` /
+`ARCHITECTURE.md` / `ADR/` for constraints. Existing project code covers the need → reuse or
+adapt. A dependency covers it → prefer the dependency unless project constraints say otherwise.
+Nothing fits → the simplest correct implementation.
+
+**A1 — while coding.** Watch only these six, applied to what you are writing:
+
+| | Ask |
+|---|---|
+| `[STRANGER]` | Did I add anything outside the requested scope? |
+| `[PROPHET]` | Did I add an abstraction, optimization, or config the request doesn't need today? |
+| `[WHEEL]` | Did I reimplement what the repo or a dependency already provides? |
+| `[TWIN]` | Did this change duplicate existing logic? |
+| `[LIAR]` | Does my error handling actually handle — or swallow? |
+| `[CLIFF]` | Does a **new** HTTP/DB/queue/file/external boundary lack an obvious failure bound? |
+
+**A2 — after coding.** Inspect the diff and changed symbols only; run targeted tests; confirm
+the result matches the requested scope — nothing more. **"While I'm here" cleanup of unrelated
+existing code is forbidden unless explicitly requested.**
+
+**Verdicts in AUTO** apply to the code being written, not to the pre-existing codebase:
+
+```yaml
+auto_mode:
+  low:    {action: silently avoid or fix in your own new code, report: optional}
+  medium: {action: avoid or fix, report: mention in the completion summary}
+  high:   {action: stop or surface before proceeding, report: required}
+```
+
+No per-finding approval workflow — except that these always surface to the user before
+proceeding: a conflict with the stated requirement; a public API, schema, or data-migration
+change; a destructive operation; an auth/security semantics change; an architecture boundary
+change; an unavoidable change to existing behaviour. A defect noticed in *unrelated existing*
+code is reported as a candidate for a later QUICK/DEEP run — never fixed silently.
+
+---
+
+## The Core Suspects (DEEP · QUICK · AUTO)
 
 | Tag | Name | Crime | Direction |
 |-----|------|-------|-----------|
@@ -49,6 +155,11 @@ Every line is a liability. Every abstraction is a bet. Every "just in case" is a
 | `[ORACLE]` | Unverified assumption | Assumes the world cooperates — no validation, no fallback. | ADD |
 | `[CLIFF]` | Unbounded failure path | Works until it doesn't. No limit, no retry, no floor. | ADD |
 | `[WHEEL]` | Reinvented wheel | Hand-rolled what a project package already provides. | CUT |
+| `[BOUNDARY]` | Deliberate seam | Not a crime — a boundary whose value is separation, substitution, or contract stability, not implementation count. | KEEP |
+
+BUG and ARCHITECTURE carry their own suspect sets — `[MISMATCH]` `[EDGE]` `[STATE]` `[ORDER]`
+`[LEAK]` `[RACE]` `[TYPE]` `[DRIFT]`, and `[BLEED]` `[INVERSION]` `[COUPLING]` `[CONTRACT]`
+`[CYCLE]` `[ISLAND]` `[BYPASS]` — defined in their reference files.
 
 ## The Wanted List — 18 Known Offenders
 
@@ -58,8 +169,12 @@ Leads to: **CUT** or **FIX** (LIAR items 11–12 always lead to FIX — replace 
 
 **GHOST · PROPHET · TWIN · STRANGER · WHEEL**
 
-1. **Helper called once** — extracted function with a single callsite → inline it
-2. **Interface / abstract class with one implementation or one subclass** — "in case we add more" → delete the interface or collapse the hierarchy into the single concrete class
+1. **Helper called once** — candidate, not a verdict. KEEP when it earns its place: a meaningful
+   semantic name, a tested contract, isolation of a side effect, boundary adaptation, or real
+   complexity reduction at the callsite. Otherwise → inline it
+2. **Interface / abstract class with one implementation or one subclass** — run the
+   **Architecture Intent Check** (below) first. `[BOUNDARY]` role evidenced → KEEP. No boundary
+   role and no current need → collapse into the single concrete class. `[PROPHET]`
 3. **Config flag that's always the same value** — not a config, it's a constant.
    (URLs, IPs, ports, and file paths belong to item 13, direction ADD — not here.)
 4. **`import X` where X is never called** — zombie import
@@ -92,9 +207,38 @@ Leads to: **ADD**
 
 16. **External call (HTTP, DB, queue) with no timeout** — one slow dependency hangs everything
 17. **Loop or recursion with no bound** — works until traffic or data size proves otherwise
-18. **No retry / fallback on transient failure** — one blip kills the operation permanently
+18. **No retry / fallback on transient failure** — inspect failure semantics **before**
+    proposing retry. Transient + retry-safe (idempotent, duplicate-side-effect-safe, no existing
+    retry layer) → ADD candidate. Non-idempotent or semantics unknown — payment, order creation,
+    publish without idempotency key, destructive mutation — → `[QUESTION]` or a different guard:
+    timeout, fail-fast, idempotency key, dedup, transaction, queue retry policy, explicit
+    propagation. A retry that duplicates a side effect is worse than the blip it papers over.
 
 ---
+
+## Architecture Intent Check
+
+Items 1, 2 and 10 misfire on deliberate architecture when applied mechanically. Before tagging
+an interface, abstract class, adapter, repository, provider, gateway, port, or a
+plugin/domain/transport/persistence boundary as `[PROPHET]` or `[GHOST]`, check for a role that
+implementation count cannot measure:
+
+```yaml
+verify_architecture:
+  cross_boundary_role: true        # separates domain from infrastructure?
+  dependency_inversion_role: true  # does the import direction depend on it?
+  test_substitution_role: true     # do tests substitute or mock through it?
+  external_isolation_role: true    # does it isolate an external system?
+  stable_contract_role: true       # do consumers rely on it staying put?
+  documented_intent: true          # CLAUDE.md / ARCHITECTURE.md / ADR / DI or plugin registrations
+```
+
+Any role evidenced → verdict `KEEP`, tag `[BOUNDARY]` — not a CUT target.
+**Single implementation ≠ unnecessary abstraction.** `[PROPHET]` requires ALL of: single
+implementation, no boundary role, no substitution need, no external isolation, no
+stable-contract requirement, no documented intent, no current-phase requirement. And absent
+documentation is not absent intent — the code structure itself (import directions, DI
+registrations, test fakes) is evidence.
 
 ## CRITICAL: Verify Before Acting
 
@@ -110,6 +254,7 @@ verify_existence:
   check_comment: true       # is there a comment explaining why it exists?
   reproduce_if_high: true   # rating HIGH → see "Reproduction beats reading" below
   reproduce_liar_fix: true  # items 11–12: make the swallowed error occur, at any severity
+  architecture_intent: true # items 1, 2, 10: run the Architecture Intent Check first
 
 rule: ALL must pass.
       Any "unknown" → [QUESTION] or [FALSE_ALARM] — except a HIGH claim whose required
@@ -132,6 +277,7 @@ verify_safety:
   check_hot_path: true              # confirm path is reachable: not in disabled branch, not test-only, not behind a feature flag that's always off
   grep_similar_callsites: true      # same pattern elsewhere? fix all or none.
   reproduce_if_runnable: true       # make the missing guard's failure happen — see below
+  retry_safety: true                # item 18: idempotency and side-effect safety before proposing retry
 
 rule: ALL must pass.
       Guard found anywhere in call chain → [FALSE_ALARM].
@@ -193,7 +339,10 @@ If you cannot fill `evidence` with grep results and line numbers → it is not a
 
 ---
 
-## Workflow
+## DEEP Workflow — the default audit
+
+(QUICK runs this same pipeline, reporting only the top-5 by severity, then blast radius.
+AUTO, BUG, and ARCHITECTURE have their own workflows — AUTO above, the others in `references/`.)
 
 ### Step 0: Prerequisites
 
@@ -264,8 +413,11 @@ Read ±30 lines around each finding.
 
 ```yaml
 skeptic_code:
+  mode: DEEP               # AUTO | QUICK | DEEP | BUG | ARCHITECTURE
   scope: "<what was audited>"
-  verdict_counts: {cut: N, fix: N, add: N, question: N, unreproduced_high: N, false_alarms: N}
+  verdict_counts: {cut: N, fix: N, add: N, keep: N, question: N, unreproduced_high: N, false_alarms: N}
+  # BUG mode adds bug/suspect/unverified counts and per-finding invariant/root_cause/regression_test
+  # fields; ARCHITECTURE mode uses its own finding shape — see the reference files.
 
   findings:
     - id: SC-001
@@ -348,7 +500,9 @@ skeptic_code:
 Say up front whether Pass 3 will run — the table in Step 8 decides. In short: applying anything
 that changes behaviour makes independent verification mandatory before the audit is called done.
 
-Group findings by direction (CUT / FIX / ADD). `[UNREPRODUCED-HIGH]` findings get their own
+Group findings by direction (CUT / FIX / ADD). `KEEP` and `FALSE_ALARM` entries are
+report-only — severity-less by design, no approval question, excluded from QUICK's top-5
+ranking. `[UNREPRODUCED-HIGH]` findings get their own
 group, presented first, with their own question per finding — **block** (treat as HIGH until it
 can be run), **apply anyway** (accept the proposed change unverified), or **defer** (leave in the
 report). "Apply all verdicts now" never covers them — a suspended verdict is not a verdict. Then
@@ -421,7 +575,7 @@ claim without an `APPROVE` for the code as it stands now.
 
 ---
 
-## Example
+## Example (DEEP)
 
 ```
 User: /skeptic-code src/web/router.py
@@ -518,3 +672,7 @@ and escalate-after-two — is adapted from [claude-forge](https://github.com/san
 `[PROPHET]`, `[STRANGER]` and the helper-called-once check descend from Andrej Karpathy's
 *Simplicity First*; `[ORACLE]` from his *Think Before Coding*. `[CLIFF]` is pre-mortem methodology
 (Klein / Kahneman) compressed into a grep-verifiable pattern.
+
+The mode architecture (AUTO/QUICK/DEEP/BUG/ARCHITECTURE), the Architecture Intent Check and
+`[BOUNDARY]`, the BUG-mode suspects and invariant-first debugging flow, and the retry-safety
+gate on item 18 were contributed as a community improvement proposal (2026-08).

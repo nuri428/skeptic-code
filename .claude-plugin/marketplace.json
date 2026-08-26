@@ -10,8 +10,8 @@
       "name": "skeptic-code",
       "displayName": "Skeptic Code",
       "source": "./",
-      "description": "Adversarial code audit driven by YAGNI, KISS, and DRY. Three passes: existence checks (should this code be here?), safety checks (is this code dangerous?), and independent verification (a fresh checker that did not write the change tries to break it). Eight suspects: ghost, prophet, liar, twin, stranger, oracle, cliff, wheel.",
-      "version": "2.2.0",
+      "description": "Adversarial engineering skill — nothing gets a verdict without evidence. Five modes: AUTO (implementation guard), QUICK (top-5 review), DEEP (full YAGNI/KISS/DRY audit), BUG (symptom-first defect investigation), ARCHITECTURE (boundary and dependency review). Independent verification by a fresh checker for material changes.",
+      "version": "3.0.0",
       "author": {
         "name": "강재호",
         "email": "greennuri@gmail.com"
@@ -19,7 +19,7 @@
       "homepage": "https://github.com/nuri428/skeptic-code",
       "repository": "https://github.com/nuri428/skeptic-code",
       "license": "MIT",
-      "keywords": ["code-review", "audit", "yagni", "kiss", "dry", "code-quality", "skeptic", "adversarial-review", "verification"],
+      "keywords": ["code-review", "audit", "yagni", "kiss", "dry", "code-quality", "skeptic", "adversarial-review", "verification", "debugging", "architecture"],
       "category": "code-quality",
       "skills": ["./skills/skeptic-code"],
       "strict": false
