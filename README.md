@@ -6,7 +6,9 @@ An adversarial engineering skill for Claude Code and OpenAI Codex that makes cod
 
 It is not a linter and it is not "one more reviewer" that must invent findings. It separates
 implementation guardrails, focused review, deep audit, debugging, and architecture review into
-five modes — all under one rule:\n\n> **A pattern is only a candidate. Evidence earns the verdict.**
+five modes — all under one rule:
+
+> **A pattern is only a candidate. Evidence earns the verdict.**
 
 | | |
 |--|--|
