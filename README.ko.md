@@ -2,7 +2,7 @@
 
 > "무죄 추정? 여기선 아닙니다. **필요하다고 증명되기 전까지는 삭제 대상입니다.**"
 
-Claude Code용 적대적 엔지니어링 스킬입니다. 코딩 에이전트가 **코드를 바꾸기 전에 자기 주장을 증명하도록** 만듭니다.
+Claude Code와 OpenAI Codex용 적대적 엔지니어링 스킬입니다. 코딩 에이전트가 **코드를 바꾸기 전에 자기 주장을 증명하도록** 만듭니다.
 
 린터도 아니고, 억지로 지적사항을 만들어내야 하는 "또 하나의 리뷰어"도 아닙니다. 구현 가드,
 집중 리뷰, 전체 감사, 디버깅, 아키텍처 리뷰를 다섯 모드로 분리하고 하나의 규칙으로 묶습니다:
@@ -53,12 +53,20 @@ Independent checker: APPROVE
 
 ## 설치
 
+### Claude Code
+
 **마켓플레이스를 통한 설치 (권장):**
 
 ```
 /plugin marketplace add nuri428/skeptic-code
 /plugin install skeptic-code@skepticcode
 ```
+
+### OpenAI Codex
+
+`skills/skeptic-code/` 디렉터리를 Codex 스킬로 사용합니다.
+
+> **호환성 참고:** 핵심 지침과 워크플로는 두 에이전트에서 사용할 수 있도록 작성되었습니다. `allowed-tools` 필드와 도구 이름은 Claude Code 전용이며 Codex 도구와 1:1로 대응한다고 보장하지 않습니다.
 
 ## 사용법
 
