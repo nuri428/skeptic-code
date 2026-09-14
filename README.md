@@ -2,9 +2,7 @@
 
 > "Innocent until proven guilty? Not here. **Deleted until proven necessary.**"
 
-A Claude Code skill for adversarial engineering — one epistemology (*nothing gets a verdict
-without evidence*), five modes: implementation guard, focused review, full audit, bug
-investigation, architecture review.
+An adversarial engineering skill for Claude Code that makes coding agents **prove their claims\nbefore they change your code**.\n\nIt is not a linter and it is not "one more reviewer" that must invent findings. It separates\nimplementation guardrails, focused review, deep audit, debugging, and architecture review into\nfive modes — all under one rule:\n\n> **A pattern is only a candidate. Evidence earns the verdict.**
 
 | | |
 |--|--|
@@ -76,7 +74,7 @@ when those modes run — audits don't pay their context cost.
 
 ## How It Works
 
-Two hunt passes with opposite mindsets, then an adversarial verification loop:
+Two structured hunt passes, one open-ended pass against checklist blindness, then an adversarial verification loop:
 
 **Pass 1A — Existence Hunt (items 1–12)**  
 *Deletion bias.* "Can I justify this line against the current spec?" → CUT or FIX
