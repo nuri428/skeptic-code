@@ -2,7 +2,11 @@
 
 > "Innocent until proven guilty? Not here. **Deleted until proven necessary.**"
 
-An adversarial engineering skill for Claude Code that makes coding agents **prove their claims\nbefore they change your code**.\n\nIt is not a linter and it is not "one more reviewer" that must invent findings. It separates\nimplementation guardrails, focused review, deep audit, debugging, and architecture review into\nfive modes — all under one rule:\n\n> **A pattern is only a candidate. Evidence earns the verdict.**
+An adversarial engineering skill for Claude Code and OpenAI Codex that makes coding agents **prove their claims before they change your code**.
+
+It is not a linter and it is not "one more reviewer" that must invent findings. It separates
+implementation guardrails, focused review, deep audit, debugging, and architecture review into
+five modes — all under one rule:\n\n> **A pattern is only a candidate. Evidence earns the verdict.**
 
 | | |
 |--|--|
@@ -26,12 +30,20 @@ Code review asks: "Is this code correct?"
 
 ## Installation
 
+### Claude Code
+
 **Via marketplace (recommended):**
 
 ```
 /plugin marketplace add nuri428/skeptic-code
 /plugin install skeptic-code@skepticcode
 ```
+
+### OpenAI Codex
+
+Use the `skills/skeptic-code/` directory as a Codex skill.
+
+> **Compatibility note:** The core instructions and workflow are designed to work with both agents. The `allowed-tools` field and tool names are Claude Code-specific and are not guaranteed to map 1:1 to Codex tools.
 
 ## Usage
 
