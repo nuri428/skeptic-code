@@ -99,17 +99,32 @@ door: unrequested features, speculative abstraction, reimplementing what exists,
 silent failure, unguarded new external boundaries. It must not slow implementation down — no
 18-item scan, no repo-wide line audit, no reproduction runs per request.
 
-Scope = `git diff` + directly affected symbols + direct callers/callees when needed. Whole-repo
-search only to answer four questions: does this already exist (code or dependency)? does it
-duplicate something? does it cross an architecture boundary? which callsites does this symbol
-change?
+Scope starts at `git diff` + directly affected symbols, then expands only as the change justifies.
 
-**A0 — before coding.** Identify the requested scope. Search existing implementations and
-dependencies (`package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`;
-existing helpers, services, adapters, providers). Read `CLAUDE.md` / `README` /
-`ARCHITECTURE.md` / `ADR/` for constraints. Existing project code covers the need → reuse or
-adapt. A dependency covers it → prefer the dependency unless project constraints say otherwise.
-Nothing fits → the simplest correct implementation.
+### AUTO scope gate
+
+Use the cheapest scope that can still answer the engineering question:
+
+| Change shape | Minimum scope |
+|---|---|
+| **Trivial/local** — rename, type hint, log/message edit, obvious one-line correction | diff + directly affected symbol only |
+| **Normal** — new behaviour inside an existing module | above + existing implementation/dependency search + direct callers/callees as needed |
+| **Boundary-changing** — public API, schema, persistence, external service, auth/security, module boundary | above + architecture docs/ADRs + affected callsites + dependency-direction check |
+
+Do **not** pay boundary-level context cost for a trivial edit. Escalate scope only when evidence
+shows the smaller scope is insufficient.
+
+Whole-repo search is reserved for four questions: does this already exist (code or dependency)?
+does it duplicate something? does it cross an architecture boundary? which callsites does this
+symbol change?
+
+**A0 — before coding.** Identify the requested scope and classify it with the scope gate above.
+For normal/boundary-changing work, search existing implementations and dependencies
+(`package.json`, `requirements*.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`; existing helpers,
+services, adapters, providers). Read `CLAUDE.md` / `README` / `ARCHITECTURE.md` / `ADR/` when the
+change can be constrained by architecture or documented decisions. Existing project code covers
+the need → reuse or adapt. A dependency covers it → prefer the dependency unless project
+constraints say otherwise. Nothing fits → the simplest correct implementation.
 
 **A1 — while coding.** Watch only these six, applied to what you are writing:
 
@@ -293,11 +308,14 @@ add:
 ### Reproduction beats reading
 
 grep evidence proves a pattern exists. It does not prove the pattern is dangerous, and it does not
-prove a change works. **A guard is verified by making it fire, not by reading it.**
+prove a change works. **Runtime reproduction is preferred evidence, but deterministic mechanical
+proof is also valid when the defect follows directly from contracts, types, import graphs, or other
+executable/static facts.** A guard on a runnable surface is still best verified by making it fire
+rather than merely reading it.
 
 | Finding | Reproduction |
 |---|---|
-| A **runtime-defect claim** you intend to rate HIGH | Required |
+| A **runtime-defect claim** you intend to rate HIGH | Required unless deterministic mechanical proof establishes the defect without executing it |
 | Any `ADD` on a runnable surface | Required |
 | Any `FIX` on `[LIAR]` — the swallowed error | Required: make the error occur, watch what the code does with it |
 | LOW / MEDIUM `CUT` settled by grep counts | Optional |
@@ -396,6 +414,22 @@ Record: what, where (file:line), which tag, direction (CUT or FIX).
 
 **Switch mindset.** You are no longer cutting — you are looking for unguarded danger.  
 Go through items 13–18. Note: what path, what guard is missing, what the failure scenario is.
+
+### Step 3C: Pass 1C — Open Hunt
+
+Run one short unconstrained pass **after** the 18 known offenders:
+
+> "What is wrong with this code that the checklist did not ask me to look for?"
+
+Rules:
+- Ignore the offender list for this pass; inspect control flow, contracts, state, data shape,
+  integration assumptions, and surprising interactions.
+- A finding must satisfy the **same evidence standard** as every other finding.
+- Do not invent a finding to satisfy this pass. `CLEAN` is valid.
+- If an open-hunt finding clearly belongs to BUG or ARCHITECTURE, report it as a candidate for
+  that mode rather than force-fitting it into a DEEP tag.
+
+The purpose is to prevent checklist blindness, not to create a nineteenth checklist.
 
 ### Step 4: Pass 2 — Verify All Candidates
 
